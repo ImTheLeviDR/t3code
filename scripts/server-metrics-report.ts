@@ -48,6 +48,19 @@ const MachineState = Schema.Struct({
 });
 export type MachineState = typeof MachineState.Type;
 
+const WorkingPoint = Schema.Struct({
+  ...Window.fields,
+  /** Turns finished inside the window, per minute; higher is better. */
+  turnsPerMin: Schema.Number,
+  /** Send to the agent's first API request. */
+  toRequestMs: Spread,
+  /** The turn's last reply byte to the client seeing the run end. */
+  turnEndMs: Spread,
+  /** Send to the client seeing the run end. */
+  turnMs: Spread,
+});
+export type WorkingPoint = typeof WorkingPoint.Type;
+
 /** One pass over the scenarios. */
 export const Measured = Schema.Struct({
   /** What else the machine was doing during the pass; never compared, only warned about. */
@@ -71,6 +84,21 @@ export const Measured = Schema.Struct({
         loopDelayP99Ms: Schema.Number,
         loopDelayMaxMs: Schema.Number,
       }),
+    }),
+  ),
+  /**
+   * N threads in worktrees of their own run editing turns back to back, all at once, with one
+   * web-like client subscribed to all of them. The scenario to steer server performance by.
+   */
+  working: Schema.optional(
+    Schema.Struct({
+      /** Each window by the number of threads working in it. */
+      active: Schema.Record(Schema.String, WorkingPoint),
+      /** Fits over the windows: what each additional working thread costs. */
+      heapMBPerThread: Schema.Number,
+      rssMBPerThread: Schema.Number,
+      cpuPctPerThread: Schema.Number,
+      loopDelayP99MsPerThread: Schema.Number,
     }),
   ),
   /** 50 short turns back to back on one thread. */
@@ -230,6 +258,7 @@ export const NOISE_RULES: ReadonlyArray<NoiseRule> = [
   { pattern: /^scaling\..*cpuPctPerThread$/, floor: 0.2, gate: true },
   { pattern: /^scaling\./, floor: 2, gate: true },
   { pattern: /^soak\./, floor: 20, gate: true },
+  { pattern: /turnsPerMin$/, floor: 3, gate: true },
   { pattern: /cpuPct$/, floor: 1, gate: true },
   { pattern: /wakeupsPerSec$/, floor: 20, gate: true },
   { pattern: /MB$/, floor: 15, gate: true },
@@ -246,6 +275,9 @@ export const NOISE_RULES: ReadonlyArray<NoiseRule> = [
 export function noiseRule(metric: string, rules: ReadonlyArray<NoiseRule> = NOISE_RULES) {
   return rules.find((rule) => rule.pattern.test(metric)) ?? { floor: 0, gate: true };
 }
+
+/** Throughput, where a drop is the regression. */
+export const higherIsBetter = (metric: string) => metric.endsWith("PerMin");
 
 /** Fields that describe a run rather than measure it. */
 const isMetric = (metric: string) =>
@@ -405,7 +437,7 @@ export function compareMetrics(
   const a = collect(before);
   const b = collect(after);
   const lines = [
-    "### Server metrics (lower is better)",
+    "### Server metrics (lower is better, except throughput per minute)",
     "",
     `before \`${before.meta.commit}\` (${before.runs.length} runs), after \`${after.meta.commit}\` (${after.runs.length} runs), ${after.meta.platform}${after.meta.noAgentScope ? ", no agent scope" : ""}`,
     "",
@@ -445,7 +477,8 @@ export function compareMetrics(
     const limit = Math.max(rule.floor, (Math.abs(mx) * threshold) / 100);
     const repeated = x.length > 1 && y.length > 1;
     const [low, high] = repeated ? bootstrapMedianDifference(x, y) : [my - mx, my - mx];
-    const moved = low > limit ? "worse" : high < -limit ? "better" : "";
+    const up = low > limit ? "worse" : high < -limit ? "better" : "";
+    const moved = higherIsBetter(metric) ? { worse: "better", better: "worse", "": "" }[up] : up;
     if (moved && !rule.gate) informational.push(metric);
     else if (moved === "worse") regressed.push(metric);
     else if (moved === "better") improved.push(metric);
