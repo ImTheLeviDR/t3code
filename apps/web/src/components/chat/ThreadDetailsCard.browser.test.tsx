@@ -21,7 +21,10 @@ const container = { width: 1200, height: 800 };
 const placement = { x: 908, y: 0, right: 12, width: 280, height: 400 } as const;
 
 function setup() {
-  useRightPanelStore.setState({ threadPanelVisibilityByThreadKey: {} });
+  useRightPanelStore.setState({
+    threadPanelVisibilityByThreadKey: {},
+    rememberedThreadDetailsOpen: null,
+  });
   const anchor = document.createElement("div");
   document.body.append(anchor);
   return {
@@ -32,11 +35,7 @@ function setup() {
 }
 
 const popoverOpen = (threadRef: ScopedThreadRef) =>
-  selectThreadPanelOpen(
-    useRightPanelStore.getState().threadPanelVisibilityByThreadKey,
-    threadRef,
-    "popover",
-  );
+  selectThreadPanelOpen(useRightPanelStore.getState(), threadRef, "popover");
 
 function Card({
   threadRef,

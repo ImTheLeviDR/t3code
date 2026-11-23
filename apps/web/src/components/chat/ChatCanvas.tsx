@@ -135,9 +135,7 @@ export function ChatCanvas({
     };
   }, [store, composerOverlayElement, timelineElement, detailsCardTopInset]);
   const detailsCardInlineOpen = useRightPanelStore((state) =>
-    threadRef === null
-      ? false
-      : selectThreadPanelOpen(state.threadPanelVisibilityByThreadKey, threadRef, "inline"),
+    threadRef === null ? false : selectThreadPanelOpen(state, threadRef, "inline"),
   );
   const model = resolveChatCanvasModel({
     measurements,
