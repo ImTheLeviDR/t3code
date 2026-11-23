@@ -12,6 +12,7 @@ import {
   pullRequestSurfaceId,
   selectActiveRightPanel,
   selectActiveRightPanelSurface,
+  selectThreadPanelOpen,
   selectThreadPanelVisibility,
   selectThreadRightPanelState,
   useRightPanelStore,
@@ -25,6 +26,8 @@ beforeEach(() => {
   useRightPanelStore.setState({
     byThreadKey: {},
     threadPanelVisibilityByThreadKey: {},
+    rememberThreadDetailsVisibility: true,
+    rememberedThreadDetailsOpen: null,
     userActionRevisionByThreadKey: {},
     closeRevisionByThreadKey: {},
   });
@@ -803,6 +806,34 @@ describe("rightPanelStore", () => {
       },
       threadPanelVisibilityByThreadKey: {},
     });
+  });
+
+  it("remembers inline thread details visibility across chats and reloads by default", async () => {
+    const inlineOpen = (ref: typeof refA) =>
+      selectThreadPanelOpen(useRightPanelStore.getState(), ref, "inline");
+
+    expect(inlineOpen(refA)).toBe(true);
+    useRightPanelStore.getState().toggleThreadPanel(refA, "inline");
+    expect(inlineOpen(refB)).toBe(false);
+
+    useRightPanelStore.getState().toggleThreadPanel(refB, "popover");
+    await reloadRightPanelStore();
+    expect(inlineOpen(refB)).toBe(false);
+    expect(selectThreadPanelOpen(useRightPanelStore.getState(), refB, "popover")).toBe(false);
+
+    useRightPanelStore.getState().toggleThreadPanel(refB, "inline");
+    expect(inlineOpen(refA)).toBe(true);
+  });
+
+  it("uses per-thread visibility when remembering thread details is disabled", async () => {
+    useRightPanelStore.getState().setRememberThreadDetailsVisibility(false);
+    useRightPanelStore.getState().toggleThreadPanel(refA, "inline");
+    await reloadRightPanelStore();
+
+    const state = useRightPanelStore.getState();
+    expect(state.rememberThreadDetailsVisibility).toBe(false);
+    expect(selectThreadPanelOpen(state, refA, "inline")).toBe(false);
+    expect(selectThreadPanelOpen(state, refB, "inline")).toBe(true);
   });
 
   it("persists inline preference without restoring an open popover", () => {

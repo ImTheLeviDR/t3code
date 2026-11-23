@@ -170,6 +170,9 @@ interface RightPanelStoreState {
   requestMaximize: (ref: ScopedThreadRef) => void;
   consumeMaximizeRequest: (ref: ScopedThreadRef) => boolean;
   threadPanelVisibilityByThreadKey: Record<string, ThreadPanelVisibility>;
+  rememberThreadDetailsVisibility: boolean;
+  rememberedThreadDetailsOpen: boolean | null;
+  setRememberThreadDetailsVisibility: (enabled: boolean) => void;
   userActionRevisionByThreadKey: Record<string, number>;
   closeRevisionByThreadKey: Record<string, number>;
   getUserActionRevision: (ref: ScopedThreadRef) => number;
@@ -785,6 +788,10 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
         return true;
       },
       threadPanelVisibilityByThreadKey: {},
+      rememberThreadDetailsVisibility: true,
+      rememberedThreadDetailsOpen: null,
+      setRememberThreadDetailsVisibility: (enabled) =>
+        set({ rememberThreadDetailsVisibility: enabled, rememberedThreadDetailsOpen: null }),
       userActionRevisionByThreadKey: {},
       closeRevisionByThreadKey: {},
       getUserActionRevision: (ref) =>
@@ -1332,6 +1339,9 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
         ),
       setThreadPanelOpen: (ref, presentation, open) =>
         set((state) => ({
+          ...(presentation === "inline" && state.rememberThreadDetailsVisibility
+            ? { rememberedThreadDetailsOpen: open }
+            : {}),
           threadPanelVisibilityByThreadKey: updateThreadPanelVisibilityMap(
             state.threadPanelVisibilityByThreadKey,
             scopedThreadKey(ref),
@@ -1341,17 +1351,14 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
             },
           ),
         })),
-      toggleThreadPanel: (ref, presentation) =>
-        set((state) => ({
-          threadPanelVisibilityByThreadKey: updateThreadPanelVisibilityMap(
-            state.threadPanelVisibilityByThreadKey,
-            scopedThreadKey(ref),
-            (visibility) =>
-              presentation === "inline"
-                ? { ...visibility, inlineOpen: !visibility.inlineOpen }
-                : { ...visibility, popoverOpen: !visibility.popoverOpen },
-          ),
-        })),
+      toggleThreadPanel: (ref, presentation) => {
+        const state = get();
+        state.setThreadPanelOpen(
+          ref,
+          presentation,
+          !selectThreadPanelOpen(state, ref, presentation),
+        );
+      },
       removeThread: (ref) =>
         set((state) => {
           const threadKey = scopedThreadKey(ref);
@@ -1385,6 +1392,8 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
         resolveStorage(typeof window !== "undefined" ? window.localStorage : undefined),
       ),
       partialize: (state) => ({
+        rememberThreadDetailsVisibility: state.rememberThreadDetailsVisibility,
+        rememberedThreadDetailsOpen: state.rememberedThreadDetailsOpen,
         byThreadKey: Object.fromEntries(
           Object.entries(state.byThreadKey).flatMap(([threadKey, threadState]) =>
             isPullRequestsPanelKey(threadKey)
@@ -1452,12 +1461,20 @@ export function selectThreadPanelVisibility(
 }
 
 export function selectThreadPanelOpen(
-  byThreadKey: Record<string, ThreadPanelVisibility>,
+  state: Pick<
+    RightPanelStoreState,
+    | "threadPanelVisibilityByThreadKey"
+    | "rememberThreadDetailsVisibility"
+    | "rememberedThreadDetailsOpen"
+  >,
   ref: ScopedThreadRef | null | undefined,
   presentation: ThreadPanelPresentation,
 ): boolean {
-  const visibility = selectThreadPanelVisibility(byThreadKey, ref);
-  return presentation === "inline" ? visibility.inlineOpen : visibility.popoverOpen;
+  const visibility = selectThreadPanelVisibility(state.threadPanelVisibilityByThreadKey, ref);
+  if (presentation === "popover") return visibility.popoverOpen;
+  return ref && state.rememberThreadDetailsVisibility
+    ? (state.rememberedThreadDetailsOpen ?? visibility.inlineOpen)
+    : visibility.inlineOpen;
 }
 
 export function selectActiveRightPanel(

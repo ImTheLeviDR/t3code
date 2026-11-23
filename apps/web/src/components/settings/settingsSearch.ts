@@ -391,6 +391,11 @@ export const SETTINGS_SEARCH_ITEMS = [
     ],
   },
   {
+    id: "remember-thread-details",
+    title: msg("Remember thread details visibility"),
+    to: "/settings/appearance",
+  },
+  {
     id: "effort-display",
     title: msg("Effort display"),
     to: "/settings/appearance",

@@ -36,6 +36,7 @@ import { useSearchableSetting } from "./settingsSearch";
 import { AdvancedSettings } from "./AdvancedSettings";
 import { PanelAnimationsPreview } from "./PanelAnimationsPreview";
 import { TypographySection } from "./TypographySettings";
+import { useRightPanelStore } from "../../rightPanelStore";
 import { ThreadDetailsItemsRow } from "./ThreadDetailsItemsRow";
 
 const ENVIRONMENT_IDENTIFICATION_LABELS: Record<EnvironmentIdentificationMode, string> = {
@@ -295,6 +296,7 @@ export function AppearanceSettingsPanel() {
           }
         />
         <ThreadDetailsItemsRow />
+        <RememberThreadDetailsRow />
         <SettingsRow
           {...searchableSetting("effort-display")}
           description={gt(
@@ -497,5 +499,34 @@ export function AppearanceSettingsPanel() {
 
       <TypographySection />
     </SettingsPageContainer>
+  );
+}
+
+function RememberThreadDetailsRow() {
+  const gt = useGT();
+  const searchableSetting = useSearchableSetting();
+  const enabled = useRightPanelStore((state) => state.rememberThreadDetailsVisibility);
+  const setEnabled = useRightPanelStore((state) => state.setRememberThreadDetailsVisibility);
+
+  return (
+    <SettingsRow
+      {...searchableSetting("remember-thread-details")}
+      description={gt("Keep the thread details panel shown or hidden when switching chats.")}
+      resetAction={
+        enabled ? null : (
+          <SettingResetButton
+            ariaLabel={gt("Reset remember thread details visibility to default")}
+            onClick={() => setEnabled(true)}
+          />
+        )
+      }
+      control={
+        <Switch
+          checked={enabled}
+          onCheckedChange={setEnabled}
+          aria-label={gt("Remember thread details visibility")}
+        />
+      }
+    />
   );
 }
